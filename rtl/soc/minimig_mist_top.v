@@ -97,6 +97,7 @@ wire           tg68_ena7RD;
 wire           tg68_ena7WR;
 wire           tg68_enaWR;
 wire [ 16-1:0] tg68_cout;
+wire [ 16-1:0] tg68_cin;
 wire           tg68_cpuena;
 wire [  4-1:0] cpu_config;
 wire [  6-1:0] memcfg;
@@ -244,14 +245,16 @@ amiga_clk amiga_clk (
 
 
 //// TG68K main CPU ////
-TG68K tg68k (
+//TG68K tg68k (
+CPU_SplitClock tg68k (
   .clk          (clk_114          ),
+  .clk28        (clk_28           ), 
   .reset        (tg68_rst         ),
   .clkena_in    (1'b1             ),
   .IPL          (tg68_IPL         ),
   .dtack        (tg68_dtack       ),
-  .vpa          (1'b1             ),
-  .ein          (1'b1             ),
+//  .vpa          (1'b1             ),
+//  .ein          (1'b1             ),
   .addr         (tg68_adr         ),
   .data_read    (tg68_dat_in      ),
   .data_write   (tg68_dat_out     ),
@@ -266,9 +269,10 @@ TG68K tg68k (
   .ena7WRreg    (tg68_ena7WR      ),
   .enaWRreg     (tg68_enaWR       ),
   .fromram      (tg68_cout        ),
+  .toram        (tg68_cin         ),
   .ramready     (tg68_cpuena      ),
   .cpu          (cpu_config[1:0]  ),
-  .turbochipram (1'b1/*turbochipram*/     ),
+  .turbochipram (1'b0/*turbochipram*/     ),
   .fastramcfg   ({memcfg[5],memcfg[5:4]}),
   .ramaddr      (tg68_cad         ),
   .cpustate     (tg68_cpustate    ),
@@ -370,7 +374,7 @@ sdram sdram (
   .hostState    ({1'b0, 2'b01}    ),
   .hostL        (1'b1             ),
   .hostU        (1'b1             ),
-  .cpuWR        (tg68_dat_out     ),
+  .cpuWR        (tg68_cin         ),
   .cpuAddr      (tg68_cad[24:1]   ),
   .cpuU         (tg68_cuds        ),
   .cpuL         (tg68_clds        ),
