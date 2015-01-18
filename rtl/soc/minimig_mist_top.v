@@ -273,7 +273,7 @@ CPU_SplitClock tg68k (
   .ramready     (tg68_cpuena      ),
   .cpu          (cpu_config[1:0]  ),
   .turbochipram (1'b0/*turbochipram*/     ),
-  .fastramcfg   ({memcfg[5],memcfg[5:4]}),
+  .fastramcfg   ({memcfg[5]&memcfg[4],memcfg[5:4]}),
   .ramaddr      (tg68_cad         ),
   .cpustate     (tg68_cpustate    ),
   .nResetOut    (                 ),
