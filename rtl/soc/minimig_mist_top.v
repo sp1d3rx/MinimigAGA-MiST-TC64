@@ -142,6 +142,7 @@ wire           reset_out;
 wire [  4-1:0] sdram_cs;
 wire [  2-1:0] sdram_dqm;
 wire [  2-1:0] sdram_ba;
+wire cache_valid;
 
 // mist
 wire           user_io_sdo;
@@ -269,8 +270,9 @@ CPU_SplitClock tg68k (
   .ena7WRreg    (tg68_ena7WR      ),
   .enaWRreg     (tg68_enaWR       ),
   .fromram      (tg68_cout        ),
-  .toram        (tg68_cin         ),
+  .toram      (tg68_cin        ),
   .ramready     (tg68_cpuena      ),
+  .cache_valid(cache_valid),
   .cpu          (cpu_config[1:0]  ),
   .turbochipram (1'b0/*turbochipram*/     ),
   .fastramcfg   ({memcfg[5]&memcfg[4],memcfg[5:4]}),
@@ -374,7 +376,7 @@ sdram sdram (
   .hostState    ({1'b0, 2'b01}    ),
   .hostL        (1'b1             ),
   .hostU        (1'b1             ),
-  .cpuWR        (tg68_cin         ),
+  .cpuWR        (tg68_cin     ),
   .cpuAddr      (tg68_cad[24:1]   ),
   .cpuU         (tg68_cuds        ),
   .cpuL         (tg68_clds        ),
@@ -391,6 +393,7 @@ sdram sdram (
   .hostena      (                 ),
   .cpuRD        (tg68_cout        ),
   .cpuena       (tg68_cpuena      ),
+  .cache_valid(cache_valid),
   .chipRD       (ramdata_in       ),
   .chip48       (chip48           ),
   .reset_out    (reset_out        ),

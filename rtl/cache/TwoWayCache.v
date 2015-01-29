@@ -35,6 +35,7 @@ module TwoWayCache
   input cache_rst,
 	output ready,
 	input [31:0] cpu_addr,
+	output cache_valid,
 	input cpu_req,	// 1 to request attention
 	output reg cpu_ack,	// 1 to signal that data is ready.
 	output reg cpu_wr_ack, // 1 to signal that write cycles have been actioned
@@ -42,7 +43,7 @@ module TwoWayCache
 	input cpu_rwl,
 	input cpu_rwu,
 	input [15:0] data_from_cpu,
-	output reg [15:0] data_to_cpu,
+	output [15:0] data_to_cpu,
 	output reg [31:0] sdram_addr,
 	input [15:0] data_from_sdram,
 	output reg [15:0] data_to_sdram,
@@ -88,8 +89,16 @@ Cache_DataRAM dataram(
 wire data_valid1;
 wire data_valid2;
 
+reg [10:4] latched_cpuaddr;
+reg [15:0] firstword;
 assign data_valid1 = data_port1_r[17] & data_port1_r[16];
 assign data_valid2 = data_port2_r[17] & data_port2_r[16];
+
+assign data_to_cpu = (readword_burst ? firstword :
+									((tag_hit1 && data_valid1) ? data_port1_r[15:0] : data_port2_r[15:0]));
+
+
+assign cache_valid = ((tag_hit1 && data_valid1) || (tag_hit2 && data_valid2)) && !readword_burst;
 
 // BlockRAM and related signals for tags.
 
@@ -168,8 +177,10 @@ assign tag_hit2 = tag_port2_r[16:0]==cpu_addr[25:9];
 // machine.
 
 
-assign data_port1_addr = init ? {1'b0,initctr} : cacheline1;
-assign data_port2_addr = init ? {1'b1,initctr} : cacheline2;
+assign data_port1_addr = init ? {1'b0,initctr} :
+			readword_burst ? {1'b0,readword} : cacheline1;
+assign data_port2_addr = init ? {1'b1,initctr} :
+			readword_burst ? {1'b1,readword} : cacheline2;
 
 
 always @(posedge clk)
@@ -264,13 +275,13 @@ begin
 
 		WAITRD:
 			begin
-				state<=PAUSE1;
+				state<=WAITING;
 				// Check both tags for a match...
 				if(tag_hit1 && data_valid1)
 				begin
 					// Copy data to output
-					data_to_cpu<=data_port1_r;
-					cpu_ack<=1'b1;
+//					data_to_cpu<=data_port1_r;
+//					cpu_ack<=1'b1;
 
 					// Mark tag1 as most recently used.
 					tag_mru1<=1'b1;
@@ -279,8 +290,8 @@ begin
 				else if(tag_hit2 && data_valid2)
 				begin
 					// Copy data to output
-					data_to_cpu<=data_port2_r;
-					cpu_ack<=1'b1;
+//					data_to_cpu<=data_port2_r;
+//					cpu_ack<=1'b1;
 					
 					// Mark tag2 as most recently used.
 					tag_mru1<=1'b0;
@@ -293,6 +304,8 @@ begin
 					// is now the most recently used.)
 					// If either tag matches, but the corresponding data is stale,
 					// we re-use the stale cacheline.
+
+					latched_cpuaddr[10:4]<=cpu_addr[10:4];
 
 					if(tag_hit1)
 						tag_mru1<=1'b1;	// Way 1 contains stale data
@@ -335,13 +348,14 @@ begin
 			if (sdram_fill==1'b1)
 			begin
 				sdram_req<=1'b0;
+				firstword <= data_from_sdram;
 
 				// Forward data to CPU
 				// (We now latch the address until the current cycle is complete.
 				// TAGRAM is already written, so just need to take care of
 				// Data RAM addresses, which we do with the readword signal.
-				data_to_cpu<=data_from_sdram;
-				cpu_ack<=1'b1;		
+//				data_to_cpu<=data_from_sdram;
+				cpu_ack<=1'b1;
 				
 				// write first word to Cache...
 				data_ports_w<={2'b11,data_from_sdram};
@@ -387,6 +401,8 @@ begin
 		FILL5:
 		begin
 			state<=FILL5;
+			readword_burst<=1'b1;
+			readword[1:0]<=cpu_addr[2:1];
 			// Shouldn't need to worry about readword now - only used during burst
 //			readword=cpu_addr[2:1];
 

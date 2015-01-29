@@ -52,8 +52,9 @@ entity CPU_SplitClock is
         enaWRreg      : in std_logic:='1';
         
         fromram    	  : in std_logic_vector(15 downto 0);
-        toram    	  : out std_logic_vector(15 downto 0);
+		  toram			: out std_logic_vector(15 downto 0);
         ramready      : in std_logic:='0';
+		  cache_valid : in std_logic:='0';
         cpu           : in std_logic_vector(1 downto 0);
 		  fastramcfg	: in std_logic_vector(2 downto 0);
 		  turbochipram : in std_logic;
@@ -79,8 +80,6 @@ ARCHITECTURE logic OF CPU_SplitClock IS
    SIGNAL busstate_r     : std_logic_vector(1 downto 0);
 	signal ramcs : std_logic;
 	signal ramcs_r : std_logic;
-	signal ramready28 : std_logic;
-	signal ramready113 : std_logic;
    SIGNAL clkena	  : std_logic;
 --   SIGNAL n_clk		  : std_logic;
 
@@ -91,6 +90,8 @@ ARCHITECTURE logic OF CPU_SplitClock IS
 	
    SIGNAL datatg68_in      : std_logic_vector(15 downto 0);
    SIGNAL datatg68_out      : std_logic_vector(15 downto 0);
+	
+	signal data28 : std_logic_vector(15 downto 0); -- Data from the slow clock.
 
 	signal sel_interrupt : std_logic;
 	signal sel_32bit : std_logic;
@@ -98,6 +99,7 @@ ARCHITECTURE logic OF CPU_SplitClock IS
 	signal sel_autoconfig : std_logic;
 	signal sel_zorroii : std_logic;
 	signal sel_zorroiii : std_logic;
+	signal sel_fastram : std_logic;
 	signal cpu_rw : std_logic;
 	signal ac_data1 : std_logic_vector(3 downto 0);
 	signal ac_data2 : std_logic_vector(3 downto 0);
@@ -109,6 +111,12 @@ ARCHITECTURE logic OF CPU_SplitClock IS
 	type fastprgstates is (waitcpu,waitram);
 	signal fast_prgstate : fastprgstates :=waitcpu;
 
+	signal sdram_req113 : std_logic;
+	signal sdram_req28 : std_logic;
+	signal sdram_req : std_logic;
+	signal fast_clkena : std_logic;
+	signal cache_clkena : std_logic;
+	
 BEGIN
 	
 --
@@ -143,10 +151,16 @@ pf68K_Kernel_inst: entity work.TG68KdotC_Kernel
 		);
 
 cpuIPL <= IPL;
-clkena<='1' when bridge_clkena='1' or busstate="01" else '0';
+
+cache_clkena <= cpu_rw and cache_valid;
+clkena<='1' when busstate="01" or bridge_clkena='1' or fast_clkena='1' or cache_clkena='1' else '0';
+
+datatg68_in <= fromram when sel_fastram='1'
+	else data28;
 		  
 PROCESS (clk28)
 	BEGIN
+	
 		IF rising_edge(clk28) THEN
 			IF reset='0' THEN
 				as<='1';
@@ -165,9 +179,8 @@ PROCESS (clk28)
 						lds<='1';
 						rw<='1';
 						
-						if busstate/="01" and (sel_zorroii='1' or sel_zorroiii='1') then
-							bridge_state<=fastramwait;
-						elsif ena7WRreg='1' then
+						-- FIXME - sel_fastram may not have enough time to settle here.
+						if sel_fastram='0' and ena7WRreg='1' then
 							addr<=cpuaddr;
 							uds<=uds_in;
 							lds<=lds_in;
@@ -204,7 +217,7 @@ PROCESS (clk28)
 					when cpuread2 =>
 						bridge_state<=cpuread3;
 					when cpuread3 =>
-						datatg68_in<=data_read;
+						data28<=data_read;
 						bridge_clkena<='1';
 						bridge_state<=cpuwait;
 					when cpuwrite =>
@@ -223,89 +236,48 @@ PROCESS (clk28)
 					when fastramwait =>
 						null;
 					when autoconfig =>
-						datatg68_in<=autoconfig_data&X"FFF";
+						data28<=autoconfig_data&X"FFF";
 						bridge_clkena<='1';
 						bridge_state<=run;
 					when run =>
 						bridge_state<=idle;
 				end case;
 
-				-- When Fast RAM access finishes, force the state machine back to the "idle" state
-				if ramready28='1' then
-					datatg68_in<=fromram;
-					bridge_clkena<='1';
-					bridge_state<=run;
-				end if;
-			
 			END IF;
 		END IF;	
 	END PROCESS;
 
+-- FastRAM address mangling
+ramaddr(22 downto 0) <= cpuaddr(22 downto 0);
+ramaddr(31 downto 25) <= "0000000";
+ramaddr(24) <= sel_zorroiii;	-- Remap the Zorro III RAM to 0x1000000
+ramaddr(23) <= cpuaddr(23) or sel_zorroii; -- Remap the Zorro II RAM to 0x0800000
 
--- SDRAM logic, runs on the 113.5Mhz clock
 
+-- SDRAM logic
 
--- Filtering the sdram_req signal like this allows us to trigger the access
--- one 113MHz cycle earlier, which allows to to catch an earlier 28Mhz cpu clock edge.
-ramcs <= not (req_pending and (sel_zorroii or sel_zorroiii));
+ramcs <= '0' when sdram_req='1' and sel_fastram='1' and (cpu_rw='0' or cache_valid='0') else '1';
 
-	
--- Register the CPU signals within the fast clock domain, to reduce timing pressure
--- on the CPU, cache and SDRAM controller.
-	process(clk)
-	begin
-		if rising_edge(clk) then
-			if reset='0' then
-				ramready113<='0';
-				req_pending<='0';
-				fast_prgstate<=waitcpu;
-			else 
-				toram <= datatg68_out;
-				cpuaddr_r <= cpuaddr;
-				ramuds <= uds_in;
-				ramlds <= lds_in;
-				busstate_r <= busstate;
-				ramcs_r <= ramcs;
-
-				-- FastRAM address mangling
-				ramaddr(22 downto 0) <= cpuaddr(22 downto 0);
-				ramaddr(31 downto 25) <= "0000000";
-				ramaddr(24) <= sel_zorroiii;	-- Remap the Zorro III RAM to 0x1000000
-				ramaddr(23) <= cpuaddr(23) or sel_zorroii; -- Remap the Zorro II RAM to 0x0800000
-				
-				-- Fast RAM handshaking
-				if ramcs='1' then
-					ramready113<='0';
-				end if;
-				if ramready='1' then
-					ramready113<='1';
-				end if;
-
-				case fast_prgstate is
-					when waitcpu =>
-						-- Wait for the CPU next to be paused
-						if clkena='0' and busstate/="01" then
-							-- Mark request as pending even if it's destined for the Amiga.
-							-- This will be masked by combinational zorro address decoding.
-							req_pending<='1';
-							fast_prgstate<=waitram;
-						end if;
-					when waitram => -- Hold the SDRAM req signal until the CPU is next enabled.
-						req_pending<='1';
-						if clkena='1' then -- or (sel_zorroii='0' and sel_zorroiii='0') then
-							req_pending<='0';
-							fast_prgstate<=waitcpu;
-						end if;
-					when others =>
-						null;
-				end case;
-
-			end if;
+-- Handle the Fast RAM logic on the falling edge of clk28 - allows us to unpause the CPU quicker
+process(clk28)
+begin
+	if falling_edge(clk28) then
+		fast_clkena<='0';
+		if busstate/="01" and sel_fastram='1' and (cache_valid='0' or cpu_rw='0') then -- Trigger an SDRAM access
+			sdram_req28<='1';
 		end if;
-	end process;
+
+		-- When SDRAM access finishes, force the state machine back to the "run" state
+		if sdram_req113='0' then
+			sdram_req28<='0';
+			fast_clkena<='1';
+		end if;
+			
+	end if;
+end process;	
 	
-	ramready28<=ramready or ramready113;
-	cpustate <= "000" & (ramcs or ramready28) & busstate_r;
+cpustate <= "000" & (ramcs or ramready) & busstate;
+toram <= datatg68_out;
 
 -- Address decoding
 
@@ -313,16 +285,24 @@ sel_interrupt <= '1' when cpuaddr(31 downto 28)=X"F" else '0';
 sel_32bit <= '0' when cpuaddr(31 downto 24)=X"00" else '1';
 sel_chipram <= '1' when cpuaddr(31 downto 21)=X"00"&"111" else '0';
 sel_autoconfig <= '1' when cpuaddr(23 downto 19)="11101" ELSE '0'; --$E80000 - $EFFFFF
+sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' else '0';
 
 cpu_rw <= '0' when busstate="11" else '1';
 
-
--- Register the high bits.
 process(clk)
 begin
 	if rising_edge(clk) then
+		if sdram_req28='0' then
+			sdram_req113<='1';
+		end if;
+		if ramready='1' then
+			sdram_req113<='0';
+		end if;
 	end if;
 end process;
+
+sdram_req<=sdram_req28 and sdram_req113;
+
 
 
 -- Autoconfig
