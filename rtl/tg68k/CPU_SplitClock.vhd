@@ -278,6 +278,8 @@ end process;
 	
 cpustate <= "000" & (ramcs or ramready) & busstate;
 toram <= datatg68_out;
+ramlds <= lds_in;
+ramuds <= uds_in;
 
 -- Address decoding
 

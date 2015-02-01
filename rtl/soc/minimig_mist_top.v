@@ -244,6 +244,8 @@ amiga_clk amiga_clk (
   .locked       (pll_locked       )  // pll locked output
 );
 
+wire ramuds;
+wire ramlds;
 
 //// TG68K main CPU ////
 //TG68K tg68k (
