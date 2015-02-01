@@ -230,9 +230,9 @@ PROCESS (clk28)
 						as<='1';
 						uds<='1';
 						lds<='1';
-						if ena7WRreg='1' then
+--						if ena7WRreg='1' then
 							bridge_state<=idle;
-						end if;
+--						end if;
 					when fastramwait =>
 						null;
 					when autoconfig =>

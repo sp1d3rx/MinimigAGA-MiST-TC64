@@ -158,3 +158,43 @@ end process;
 	sel <= '1' when done='1' and enabled='1' and addr_in(31 downto 24)=base_addr else '0';
 
 end architecture;
+
+
+-- Architecture for Turbo Chip RAM
+
+architecture TurboChip of AutoconfigRAM is
+signal done : std_logic;
+
+begin
+
+req_out<=req and done;
+
+process(clk)
+begin 
+
+	-- Clocked logic to handle the 'done' flag.
+	if rising_edge(clk) then
+		if reset_n='0' theN
+			done<='0';
+		else
+			if config="00" then
+				done<='1';
+			end if;
+
+			-- Handle access to config registers
+			if req='1'
+				done<='1';
+			end if;			
+	end if;
+
+	-- We're not actually doing any autoconfiguring here, we simply implement it
+	-- via the Autoconfig mechanism because it's a simple and elegant way to
+	-- combine it with Fast RAM logic and ensure that the system doesn't try to 
+	-- use it before the Kickstart overlay has been disabled.
+	data_out <= "1111";
+end process;
+
+		-- Address decoding - match addresses 0x00000000 to 0x001fffff
+	sel <= '1' when done='1' and addr_in(31 downto 21)=X"00"&"000" else '0';
+
+end architecture;
