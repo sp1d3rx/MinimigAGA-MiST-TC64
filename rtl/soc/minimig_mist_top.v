@@ -107,6 +107,7 @@ wire [  6-1:0] tg68_cpustate;
 wire           tg68_cdma;
 wire           tg68_clds;
 wire           tg68_cuds;
+wire				tg68_cacheable;
 wire [ 32-1:0] tg68_VBR_out;
 
 // minimig
@@ -275,8 +276,9 @@ CPU_SplitClock tg68k (
   .toram      (tg68_cin        ),
   .ramready     (tg68_cpuena      ),
   .cache_valid(cache_valid),
+  .cacheable(tg68_cacheable),
   .cpu          (cpu_config[1:0]  ),
-  .turbochipram (1'b0/*turbochipram*/     ),
+  .turbochipram (memcfg[5]&memcfg[4]/*1'b0*//*turbochipram*/     ),
   .fastramcfg   ({memcfg[5]&memcfg[4],memcfg[5:4]}),
   .ramaddr      (tg68_cad         ),
   .cpustate     (tg68_cpustate    ),
@@ -396,6 +398,7 @@ sdram sdram (
   .cpuRD        (tg68_cout        ),
   .cpuena       (tg68_cpuena      ),
   .cache_valid(cache_valid),
+  .cacheable(tg68_cacheable),
   .chipRD       (ramdata_in       ),
   .chip48       (chip48           ),
   .reset_out    (reset_out        ),

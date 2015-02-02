@@ -53,6 +53,7 @@ entity CPU_SplitClock is
         
         fromram    	  : in std_logic_vector(15 downto 0);
 		  toram			: out std_logic_vector(15 downto 0);
+		  cacheable : out std_logic;
         ramready      : in std_logic:='0';
 		  cache_valid : in std_logic:='0';
         cpu           : in std_logic_vector(1 downto 0);
@@ -100,12 +101,14 @@ ARCHITECTURE logic OF CPU_SplitClock IS
 	signal sel_zorroii : std_logic;
 	signal sel_zorroiii : std_logic;
 	signal sel_fastram : std_logic;
+	signal sel_turbochip : std_logic;
 	signal cpu_rw : std_logic;
 	signal ac_data1 : std_logic_vector(3 downto 0);
 	signal ac_data2 : std_logic_vector(3 downto 0);
 	signal autoconfig_data : std_logic_vector(3 downto 0);
 	signal ac_req : std_logic;
 	signal ac2_req : std_logic;
+	signal ac3_req : std_logic;
 
 	signal req_pending : std_logic;
 	type fastprgstates is (waitcpu,waitram);
@@ -253,6 +256,10 @@ ramaddr(31 downto 25) <= "0000000";
 ramaddr(24) <= sel_zorroiii;	-- Remap the Zorro III RAM to 0x1000000
 ramaddr(23) <= cpuaddr(23) or sel_zorroii; -- Remap the Zorro II RAM to 0x0800000
 
+-- We don't want chipram to be data-cacheable until
+-- such time as the cache can bus-snoop.
+cacheable<='1' when	sel_zorroii='1' or sel_zorroiii='1' -- or (sel_turbochip='1' and busstate="00")
+	else '0';
 
 -- SDRAM logic
 
@@ -287,7 +294,7 @@ sel_interrupt <= '1' when cpuaddr(31 downto 28)=X"F" else '0';
 sel_32bit <= '0' when cpuaddr(31 downto 24)=X"00" else '1';
 sel_chipram <= '1' when cpuaddr(31 downto 21)=X"00"&"111" else '0';
 sel_autoconfig <= '1' when cpuaddr(23 downto 19)="11101" ELSE '0'; --$E80000 - $EFFFFF
-sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' else '0';
+sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' or sel_turbochip='1' else '0';
 
 cpu_rw <= '0' when busstate="11" else '1';
 
@@ -334,8 +341,23 @@ port map(
 	config => '0'&fastramcfg(2),
 	rw => cpu_rw,
 	req => ac2_req,
-	req_out => open,
+	req_out => ac3_req,
 	sel => sel_zorroiii
+);
+
+
+autoconfig_turbochip : entity work.AutoconfigRAM(TurboChip)
+port map(
+	clk => clk28,
+	reset_n => reset,
+	addr_in => cpuaddr,
+	data_in => datatg68_out,
+	data_out => open, -- Not actually an autoconfig interface.
+	config => '0'&turbochipram,
+	rw => cpu_rw,
+	req => ac3_req,
+	req_out => open,
+	sel => sel_turbochip
 );
 
 autoconfig_data<=ac_data1 and ac_data2;

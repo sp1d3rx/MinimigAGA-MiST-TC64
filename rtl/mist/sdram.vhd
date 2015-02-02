@@ -62,6 +62,7 @@ port
 	hostRD		: out std_logic_vector(15 downto 0);
 	hostena		: buffer std_logic;
 	cache_valid : out std_logic;
+	cacheable : in std_logic;
 	cpuRD		: out std_logic_vector(15 downto 0);
 	cpuena		: out std_logic;
 	chipRD		: out std_logic_vector(15 downto 0);
@@ -167,6 +168,7 @@ COMPONENT TwoWayCache
 		cpu_ack		:	 OUT STD_LOGIC;
 		cpu_wr_ack		:	 OUT STD_LOGIC;
 	   cache_valid : OUT STD_LOGIC;
+		cacheable : in std_logic;
 		cpu_rw		:	 IN STD_LOGIC;
 		cpu_rwl	: in std_logic;
 		cpu_rwu : in std_logic;
@@ -347,7 +349,8 @@ mytwc : component TwoWayCache
 		sdram_req => cache_req,
 		sdram_fill => readcache_fill,
 		sdram_rw => open,
-		cache_valid => cache_valid
+		cache_valid => cache_valid,
+		cacheable => cacheable
 	);
 
 -- Write buffer, enables CPU to continue while a write is in progress.

@@ -174,7 +174,7 @@ begin
 
 	-- Clocked logic to handle the 'done' flag.
 	if rising_edge(clk) then
-		if reset_n='0' theN
+		if reset_n='0' then
 			done<='0';
 		else
 			if config="00" then
@@ -182,9 +182,10 @@ begin
 			end if;
 
 			-- Handle access to config registers
-			if req='1'
+			if req='1' then
 				done<='1';
-			end if;			
+			end if;		
+		end if;
 	end if;
 
 	-- We're not actually doing any autoconfiguring here, we simply implement it
@@ -195,6 +196,6 @@ begin
 end process;
 
 		-- Address decoding - match addresses 0x00000000 to 0x001fffff
-	sel <= '1' when done='1' and addr_in(31 downto 21)=X"00"&"000" else '0';
+	sel <= '1' when config(0)='1' and done='1' and addr_in(31 downto 21)=X"00"&"000" else '0';
 
 end architecture;

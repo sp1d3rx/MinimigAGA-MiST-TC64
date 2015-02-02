@@ -35,6 +35,7 @@ module TwoWayCache
   input cache_rst,
 	output ready,
 	input [31:0] cpu_addr,
+	input cacheable,
 	output cache_valid,
 	input cpu_req,	// 1 to request attention
 	output reg cpu_ack,	// 1 to signal that data is ready.
@@ -90,15 +91,16 @@ wire data_valid1;
 wire data_valid2;
 
 reg [10:4] latched_cpuaddr;
+reg cacheable_l;
 reg [15:0] firstword;
 assign data_valid1 = data_port1_r[17] & data_port1_r[16];
 assign data_valid2 = data_port2_r[17] & data_port2_r[16];
 
-assign data_to_cpu = (readword_burst ? firstword :
+assign data_to_cpu = (readword_burst || !cacheable ? firstword :
 									((tag_hit1 && data_valid1) ? data_port1_r[15:0] : data_port2_r[15:0]));
 
 
-assign cache_valid = ((tag_hit1 && data_valid1) || (tag_hit2 && data_valid2)) && !readword_burst;
+assign cache_valid = cacheable & ((tag_hit1 & data_valid1) || (tag_hit2 & data_valid2)) & !readword_burst;
 
 // BlockRAM and related signals for tags.
 
@@ -277,7 +279,7 @@ begin
 			begin
 				state<=WAITING;
 				// Check both tags for a match...
-				if(tag_hit1 && data_valid1)
+				if(cacheable && tag_hit1 && data_valid1)
 				begin
 					// Copy data to output
 //					data_to_cpu<=data_port1_r;
@@ -287,7 +289,7 @@ begin
 					tag_mru1<=1'b1;
 					tag_wren1<=1'b1;
 				end
-				else if(tag_hit2 && data_valid2)
+				else if(cacheable && tag_hit2 && data_valid2)
 				begin
 					// Copy data to output
 //					data_to_cpu<=data_port2_r;
@@ -317,8 +319,8 @@ begin
 //					For simulation only, to avoid the unknown value of unitialised blockram
 //					tag_mru1<=cpu_addr[1];
 
-					tag_wren1<=1'b1;
-					tag_wren2<=1'b1;
+					tag_wren1<=cacheable; // 1'b1;
+					tag_wren2<=cacheable; // 1'b1;
 					// If r[17] is 1, tag_mru1 is 0, so we need to write to the second tag.
 					// FIXME - might be simpler to just write every cycle and switch between new and old data.
 //					tag_wren2<=tag_port1_r[17];
@@ -328,6 +330,7 @@ begin
 					sdram_req<=1'b1;
 					sdram_rw<=1'b1;	// Read cycle
 					state<=WAITFILL;
+					cacheable_l<=cacheable;
 				end
 			end
 
@@ -359,8 +362,8 @@ begin
 				
 				// write first word to Cache...
 				data_ports_w<={2'b11,data_from_sdram};
-				data_wren1<=tag_mru1;
-				data_wren2<=!tag_mru1;
+				data_wren1<=cacheable_l & tag_mru1;
+				data_wren2<=cacheable_l & !tag_mru1;
 				state<=FILL2;
 			end
 		end
@@ -371,8 +374,8 @@ begin
 			readword_burst<=1'b1;
 			readword[1:0]<=readword[1:0]+1;
 			data_ports_w<={2'b11,data_from_sdram};
-			data_wren1<=tag_mru1;
-			data_wren2<=!tag_mru1;
+			data_wren1<=cacheable_l & tag_mru1;
+			data_wren2<=cacheable_l & !tag_mru1;
 			state<=FILL3;
 		end
 
@@ -382,8 +385,8 @@ begin
 			readword_burst<=1'b1;
 			readword[1:0]<=readword[1:0]+1;
 			data_ports_w<={2'b11,data_from_sdram};
-			data_wren1<=tag_mru1;
-			data_wren2<=!tag_mru1;
+			data_wren1<=cacheable_l & tag_mru1;
+			data_wren2<=cacheable_l & !tag_mru1;
 			state<=FILL4;
 		end
 
@@ -393,8 +396,8 @@ begin
 			readword_burst<=1'b1;
 			readword[1:0]<=readword[1:0]+1;
 			data_ports_w<={2'b11,data_from_sdram};
-			data_wren1<=tag_mru1;
-			data_wren2<=!tag_mru1;
+			data_wren1<=cacheable_l & tag_mru1;
+			data_wren2<=cacheable_l & !tag_mru1;
 			state<=FILL5;
 		end
 		
