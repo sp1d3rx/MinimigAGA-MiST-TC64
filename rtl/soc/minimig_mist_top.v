@@ -250,11 +250,10 @@ wire ramlds;
 
 //// TG68K main CPU ////
 //TG68K tg68k (
-CPU_SplitClock tg68k (
+TG68K_SplitClock tg68k (
   .clk          (clk_114          ),
   .clk28        (clk_28           ), 
   .reset        (tg68_rst         ),
-  .clkena_in    (1'b1             ),
   .IPL          (tg68_IPL         ),
   .dtack        (tg68_dtack       ),
 //  .vpa          (1'b1             ),
@@ -284,7 +283,6 @@ CPU_SplitClock tg68k (
   .cpustate     (tg68_cpustate    ),
   .nResetOut    (                 ),
   .skipFetch    (                 ),
-  .cpuDMA       (tg68_cdma        ),
   .ramlds       (tg68_clds        ),
   .ramuds       (tg68_cuds        ),
   .VBR_out      (tg68_VBR_out     )
@@ -385,7 +383,7 @@ sdram sdram (
   .cpuU         (tg68_cuds        ),
   .cpuL         (tg68_clds        ),
   .cpustate     (tg68_cpustate    ),
-  .cpu_dma      (tg68_cdma        ),
+//  .cpu_dma      (tg68_cdma        ),
   .chipWR       (ram_data         ),
   .chipAddr     ({2'b00, ram_address[21:1]}),
   .chipU        (_ram_bhe         ),

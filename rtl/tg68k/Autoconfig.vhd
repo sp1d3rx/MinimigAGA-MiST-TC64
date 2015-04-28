@@ -160,6 +160,18 @@ end process;
 end architecture;
 
 
+-- Architecture for Manually linked RAM
+
+architecture ManualLink of AutoconfigRAM is
+
+begin
+	-- Address decoding - match addresses 0x0100000 to 0x01ffffff
+	sel <= '1' when addr_in(31 downto 24)=X"01" else '0';
+
+end architecture;
+
+
+
 -- Architecture for Turbo Chip RAM
 
 architecture TurboChip of AutoconfigRAM is

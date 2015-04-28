@@ -91,7 +91,7 @@ set_output_delay -clock sdclk_pin -min -0.8 [get_ports SDRAM_*]
 # Set Multicycle Path
 #**************************************************************
 
-set_multicycle_path -from [get_clocks {sdclk_pin}] -to [get_clocks {amiga_clk|amiga_clk_i|altpll_component|pll|clk[2]}] -setup -end 2
+set_multicycle_path -from [get_clocks {sdclk_pin}] -to [get_clocks {amiga_clk|amiga_clk_i|altpll_component|pll|clk[0]}] -setup -end 2
 
 
 #**************************************************************
