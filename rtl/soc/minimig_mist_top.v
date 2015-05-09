@@ -277,7 +277,7 @@ TG68K_SplitClock tg68k (
   .cache_valid(cache_valid),
   .cacheable(tg68_cacheable),
   .cpu          (cpu_config[1:0]  ),
-  .turbochipram (memcfg[5]&memcfg[4]/*1'b0*//*turbochipram*/     ),
+  .turbochipram (memcfg[5]&memcfg[4]&turbochipram/*1'b0*//*turbochipram*/     ),
   .fastramcfg   ({memcfg[5]&memcfg[4],memcfg[5:4]}),
   .ramaddr      (tg68_cad         ),
   .cpustate     (tg68_cpustate    ),

@@ -86,6 +86,10 @@ end process;
 
 	-- Address decoding
 	sel <= '1' when done='1' and addr_in(31 downto 24)=X"00" and
+--		((addr_in(23 downto 21))="001" or -- two meg enabled, addr 0x200000
+--		(addr_in(23 downto 21))="010" or -- four meg enabled, addr 0x400000
+--		(addr_in(23 downto 21))="011" or -- eight meg enabled, addr 0x600000
+--		(addr_in(23 downto 21))="100") else '0'; -- eight meg, addr 0x800000
 		((twomeg&addr_in(23 downto 21))="1001" or -- two meg enabled, addr 0x200000
 		(fourmeg&addr_in(23 downto 21))="1010" or -- four meg enabled, addr 0x400000
 		(eightmeg&addr_in(23 downto 21))="1011" or -- eight meg enabled, addr 0x600000
@@ -156,20 +160,9 @@ end process;
 
 		-- Address decoding
 	sel <= '1' when done='1' and enabled='1' and addr_in(31 downto 24)=base_addr else '0';
+--	sel <= '1' when enabled='1' and addr_in(31 downto 30)="01" else '0';
 
 end architecture;
-
-
--- Architecture for Manually linked RAM
-
-architecture ManualLink of AutoconfigRAM is
-
-begin
-	-- Address decoding - match addresses 0x0100000 to 0x01ffffff
-	sel <= '1' when addr_in(31 downto 24)=X"01" else '0';
-
-end architecture;
-
 
 
 -- Architecture for Turbo Chip RAM

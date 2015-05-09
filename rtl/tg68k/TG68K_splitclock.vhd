@@ -64,11 +64,42 @@ entity TG68K_SplitClock is
         skipFetch     : buffer std_logic;
         ramlds        : out std_logic;
         ramuds        : out std_logic;
-		  VBR_out : out std_logic_vector(31 downto 0)
+		  VBR_out 	: std_logic_vector(31 downto 0)
         );
 end TG68K_SplitClock;
 
 ARCHITECTURE logic OF TG68K_SplitClock IS
+
+
+COMPONENT TG68KdotC_Kernel 
+	generic(
+		SR_Read : integer:= 2;         --0=>user,   1=>privileged,      2=>switchable with CPU(0)
+		VBR_Stackframe : integer:= 2;  --0=>no,     1=>yes/extended,    2=>switchable with CPU(0)
+		extAddr_Mode : integer:= 2;    --0=>no,     1=>yes,    2=>switchable with CPU(1)
+		MUL_Mode : integer := 2;	   --0=>16Bit,  1=>32Bit,  2=>switchable with CPU(1),  3=>no MUL,  
+		DIV_Mode : integer := 2;	   --0=>16Bit,  1=>32Bit,  2=>switchable with CPU(1),  3=>no DIV,  
+		BitField : integer := 2		   --0=>no,     1=>yes,    2=>switchable with CPU(1)  
+		);
+   port(clk               	: in std_logic;
+        nReset             	: in std_logic;			--low active
+        clkena_in         	: in std_logic:='1';
+        data_in          	: in std_logic_vector(15 downto 0);
+		IPL				  	: in std_logic_vector(2 downto 0):="111";
+		IPL_autovector   	: in std_logic:='0';
+		CPU             	: in std_logic_vector(1 downto 0):="00";  -- 00->68000  01->68010  11->68020(only same parts - yet)
+        addr           		: buffer std_logic_vector(31 downto 0);
+        data_write        	: out std_logic_vector(15 downto 0);
+		nWr			  		: out std_logic;
+		nUDS, nLDS	  		: out std_logic;
+		nResetOut	  		: out std_logic;
+        FC              	: out std_logic_vector(2 downto 0);
+-- for debug		
+		busstate	  	  	: out std_logic_vector(1 downto 0);	-- 00-> fetch code 10->read data 11->write data 01->no memaccess
+		skipFetch	  		: out std_logic;
+        regin          		: buffer std_logic_vector(31 downto 0)
+        );
+	END COMPONENT;
+
 
    SIGNAL cpuaddr     : std_logic_vector(31 downto 0);
    SIGNAL t_addr      : std_logic_vector(31 downto 0);
@@ -105,12 +136,12 @@ ARCHITECTURE logic OF TG68K_SplitClock IS
 	signal sel_interrupt : std_logic;
 	signal sel_32bit : std_logic;
 	signal sel_bridge : std_logic;
+	signal sel_chipram : std_logic;
 	signal sel_autoconfig : std_logic;
 	signal sel_zorroii : std_logic;
 	signal sel_zorroiii : std_logic;
 	signal sel_fastram : std_logic;
 	signal sel_turbochip : std_logic;
-	signal sel_manuallink : std_logic;
 	signal cpu_rw : std_logic;
 	SIGNAL turbochip_ena : std_logic := '0';
 	SIGNAL turbochip_d : std_logic := '0';
@@ -124,7 +155,6 @@ ARCHITECTURE logic OF TG68K_SplitClock IS
 	signal sync_state		: sync_states;
 	
    SIGNAL datatg68      : std_logic_vector(15 downto 0);
-   SIGNAL datatg68_l    : std_logic_vector(15 downto 0);
    SIGNAL ramcs	      : std_logic;
 
 	
@@ -140,7 +170,6 @@ ARCHITECTURE logic OF TG68K_SplitClock IS
 	signal sdram_req : std_logic;
 	signal fast_clkena : std_logic;
 	signal cache_clkena : std_logic;
-	signal decode_clkena : std_logic;
 
 
 BEGIN  
@@ -148,10 +177,9 @@ BEGIN
 	addr <= cpuaddr;
 
 	cache_clkena <= '1' when cpu_rw='1' and cache_valid='1' and state/="01" else '0';
-	clkena<='1' when clkena_e='1' or fast_clkena='1' or cache_clkena='1' or decode_clkena='1' else '0';
+	clkena<='1' when clkena_e='1' or fast_clkena='1' or cache_clkena='1' else '0';
 
-	datatg68 <= datatg68_l when state="01"
-		else fromram when sel_fastram='1'
+	datatg68 <= fromram when sel_fastram='1'
 		else autoconfig_data&X"FFF" when sel_autoconfig='1'
 		else r_data;
 
@@ -160,10 +188,10 @@ BEGIN
 -- FastRAM address mangling
 ramaddr(22 downto 0) <= cpuaddr(22 downto 0);
 ramaddr(31 downto 25) <= "0000000";
-ramaddr(24) <= sel_zorroiii or sel_manuallink;	-- Remap the Zorro III RAM to 0x1000000
+ramaddr(24) <= sel_zorroiii;	-- Remap the Zorro III RAM to 0x1000000
 ramaddr(23) <= cpuaddr(23) or sel_zorroii; -- Remap the Zorro II RAM to 0x0800000
 
-pf68K_Kernel_inst: entity work.TG68KdotC_Kernel 
+pf68K_Kernel_inst: TG68KdotC_Kernel 
 	generic map(
 		SR_Read => 2,         	--0=>user,   1=>privileged,      2=>switchable with CPU(0)
 		VBR_Stackframe => 2,  	--0=>no,     1=>yes/extended,    2=>switchable with CPU(0)
@@ -187,8 +215,7 @@ pf68K_Kernel_inst: entity work.TG68KdotC_Kernel
 		nLDS => lds_in,	  			-- : out std_logic;
 		nResetOut => nResetOut,
 		CPU => cpu,
-		skipFetch => skipFetch, 		-- : out std_logic
-		VBR_out => VBR_out
+		skipFetch => skipFetch 		-- : out std_logic
         );
  		
 				
@@ -300,25 +327,9 @@ toram <= w_data;
 
 -- We don't want chipram to be data-cacheable until
 -- such time as the cache can bus-snoop.
-cacheable<='0'; -- '1' when	sel_zorroii='1' or sel_zorroiii='1'  -- Fast RAM always cacheable
---						or (sel_turbochip='1' and state="00")  -- Chip RAM only cacheable for instructions
---							else '0';
-
-process(clk28)
-begin
-	if rising_edge(clk28) then
-		datatg68_l<=datatg68;
-		if reset='0' then
-			decode_clkena<='0';
-		end if;
-		
-		decode_clkena<='0';
-		if state="01" and decode_clkena='0' then
-			decode_clkena<='1';
-		end if;
-		
-	end if;
-end process;
+cacheable<='1' when	sel_zorroii='1' or sel_zorroiii='1'  -- Fast RAM always cacheable
+						or (sel_turbochip='1' and state="00")  -- Chip RAM only cacheable for instructions
+							else '0';
 
 -- Handle most logic on the falling edge of clk28,
 -- handing 7Mhz cycles off to logic on the rising edge.
@@ -339,6 +350,8 @@ begin
 			elsif sel_fastram='0' then
 				sel_bridge<='1';
 			end if;
+		else
+			fast_clkena<='1';
 		end if;
 		
 		if clkena_e='1' then
@@ -359,18 +372,15 @@ end process;
 
 sel_interrupt <= '1' when cpuaddr(31 downto 28)=X"F" else '0';
 sel_32bit <= '0' when cpuaddr(31 downto 24)=X"00" else '1';
-sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' or sel_turbochip='1' else '0'; -- or sel_manuallink='1' else '0';
+sel_chipram <= '1' when cpuaddr(31 downto 21)=X"00"&"111" else '0';
 sel_autoconfig <= '1' when sel_fastram='0' and cpuaddr(23 downto 19)="11101" ELSE '0'; --$E80000 - $EFFFFF
+sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' or sel_turbochip='1' else '0';
 
 cpu_rw <= '0' when state="11" else '1';
 
 process(clk)
 begin
 	if rising_edge(clk) then
---		sdram_req<='0';
---		if sdram_req28='1' and ramready='0' and sdram_req113='1' then
---			sdram_req<='1';
---		end if;
 		if sdram_req28='0' then
 			sdram_req113<='1';
 		end if;
@@ -416,20 +426,6 @@ port map(
 );
 
 
-autoconfig_manualconfig : entity work.AutoconfigRAM(ManualLink)
-port map(
-	clk => clk28,
-	reset_n => reset,
-	addr_in => cpuaddr,
-	data_in => (others =>'X'),
-	data_out => open, -- Not actually an autoconfig interface.
-	config => "00", -- '0'&turbochipram,
-	rw => '1',
-	req => '0',
-	req_out => open,
-	sel => sel_manuallink
-);
-
 autoconfig_turbochip : entity work.AutoconfigRAM(TurboChip)
 port map(
 	clk => clk28,
@@ -437,7 +433,7 @@ port map(
 	addr_in => cpuaddr,
 	data_in => w_data,
 	data_out => open, -- Not actually an autoconfig interface.
-	config => "00", -- '0'&turbochipram,
+	config => '0'&turbochipram,
 	rw => cpu_rw,
 	req => ac3_req,
 	req_out => open,
