@@ -359,7 +359,7 @@ end process;
 
 sel_interrupt <= '1' when cpuaddr(31 downto 28)=X"F" else '0';
 sel_32bit <= '0' when cpuaddr(31 downto 24)=X"00" else '1';
-sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' or sel_turbochip='1' or sel_manuallink='1' else '0';
+sel_fastram <='1' when sel_zorroii='1' or sel_zorroiii='1' or sel_turbochip='1' else '0'; -- or sel_manuallink='1' else '0';
 sel_autoconfig <= '1' when sel_fastram='0' and cpuaddr(23 downto 19)="11101" ELSE '0'; --$E80000 - $EFFFFF
 
 cpu_rw <= '0' when state="11" else '1';
@@ -367,10 +367,10 @@ cpu_rw <= '0' when state="11" else '1';
 process(clk)
 begin
 	if rising_edge(clk) then
-		sdram_req<='0';
-		if sdram_req28='1' and ramready='0' and sdram_req113='1' then
-			sdram_req<='1';
-		end if;
+--		sdram_req<='0';
+--		if sdram_req28='1' and ramready='0' and sdram_req113='1' then
+--			sdram_req<='1';
+--		end if;
 		if sdram_req28='0' then
 			sdram_req113<='1';
 		end if;
@@ -380,7 +380,7 @@ begin
 	end if;
 end process;
 
--- sdram_req<=sdram_req28 and sdram_req113;
+sdram_req<=sdram_req28 and sdram_req113;
 
 
 
