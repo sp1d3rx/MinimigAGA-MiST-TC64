@@ -419,6 +419,8 @@ assign osd_b = osd_pixel ? 2'b11 : 2'b10;
 assign VGA_CS           = cs_reg;
 assign VGA_VS           = (!rtg_ena & invertsync) ^ vsyncpol ^ vs_reg;
 assign VGA_HS           = (!rtg_ena & invertsync) ^ hsyncpol ^ hs_reg;
+
+
 //assign VGA_R[7:0]       = osd_window ? {osd_r,red_reg[7:2]} : red_reg[7:0];
 assign VGA_G[7:0]       = osd_window ? {osd_g,green_reg[7:2]} : green_reg[7:0];
 assign VGA_B[7:0]       = osd_window ? {osd_b,blue_reg[7:2]} : blue_reg[7:0];

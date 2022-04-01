@@ -30,3 +30,4 @@ build.sh
 
 # ignore generated version file
 rtl/minimig/minimig_version.vh
+*.asm
