@@ -24,7 +24,14 @@ fpga/*/out/
 fpga/*/db/
 fpga/*/incremental_db/
 greybox_tmp/
-
+fpga/*/output_files/*.htm
+fpga/*/output_files/*.png
+fpga/*/output_files/*.rpt
+fpga/*/output_files/*.summary
+fpga/*/output_files/*.smsg
+fpga/*/output_files/*.eqn
+fpga/*/output_files/*.smsg
+fpga/*/output_files/*/
 # build script shouldn't be in repo
 build.sh
 
